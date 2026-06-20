@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import Link from "next/link";
 import { useTerminal } from "@/features/terminal/store";
 import { terminalSnapshot } from "@/features/terminal/data/mockTerminalData";
 import { pct } from "@/features/terminal/lib/format";
@@ -102,8 +103,17 @@ export function TopBar() {
         </div>
       </form>
 
+      {/* reports link */}
+      <Link
+        href="/reports"
+        className="ml-auto hidden items-center gap-1.5 rounded-md border border-hot/40 bg-hot/10 px-2.5 py-1.5 text-[11px] font-semibold text-hot hover:bg-hot/15 lg:flex"
+      >
+        <span className="text-[9px]">★</span>
+        K-Semi Signal
+      </Link>
+
       {/* market status */}
-      <div className="ml-auto flex items-center gap-3 font-mono text-[11px]">
+      <div className="flex items-center gap-3 font-mono text-[11px] max-lg:ml-auto">
         <Stat label="KOSPI" value={marketStatus.kospi.toFixed(1)} delta={marketStatus.kospiChange} />
         <span className="h-4 w-px bg-line" />
         <Stat label="USD/KRW" value={marketStatus.usdkrw.toFixed(1)} />

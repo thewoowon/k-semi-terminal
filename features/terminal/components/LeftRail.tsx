@@ -16,7 +16,7 @@ export function LeftRail() {
   return (
     <div className="flex h-full min-h-0 w-[268px] shrink-0 flex-col gap-2 overflow-y-auto scrollarea pr-0.5">
       {/* Pulse / thermometer */}
-      <Panel>
+      <Panel className="shrink-0">
         <PanelHeader
           tag="K-SEMI PULSE"
           title="Semi Cycle Score"
@@ -30,7 +30,7 @@ export function LeftRail() {
       </Panel>
 
       {/* Segments */}
-      <Panel flush>
+      <Panel flush className="shrink-0">
         <div className="p-3 pb-1.5">
           <PanelHeader
             tag="VALUE CHAIN"
@@ -105,7 +105,7 @@ export function LeftRail() {
       </Panel>
 
       {/* Watchlist */}
-      <Panel flush className="flex-1">
+      <Panel flush className="shrink-0 pb-1">
         <div className="p-3 pb-1.5">
           <PanelHeader tag="WATCHLIST" title="Korea Basket" className="mb-0" />
         </div>
