@@ -39,3 +39,10 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# claude
+.claude/
+
+# markdown files
+k_semi_terminal_claude_spec.md
+k_semi_signal_report_engine_claude_spec.md
