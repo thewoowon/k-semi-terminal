@@ -34,6 +34,9 @@ export const env = {
   // "real" (default) → openapi.koreainvestment.com; "paper" → 모의투자 host.
   kisEnv: process.env.KIS_ENV === "paper" ? "paper" : "real",
 
+  // Disclosures — DART OpenAPI (opendart.fss.or.kr), server-only.
+  dartApiKey: process.env.DART_API_KEY,
+
   // Observability
   sentryDsn: process.env.SENTRY_DSN || process.env.NEXT_PUBLIC_SENTRY_DSN,
 } as const;
@@ -48,6 +51,8 @@ export const features = {
   db: Boolean(env.databaseUrl),
   /** Live KIS market data available; otherwise serve mock index values. */
   marketData: Boolean(env.kisAppKey && env.kisAppSecret),
+  /** Live DART disclosures available; otherwise mock event feed. */
+  dart: Boolean(env.dartApiKey),
   /** Sentry error capture available. */
   sentry: Boolean(env.sentryDsn),
 } as const;

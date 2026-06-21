@@ -1,9 +1,9 @@
 "use client";
 
-import { useMemo } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Panel, PanelHeader } from "@/components/terminal/Panel";
 import { cn } from "@/lib/utils";
-import { chainNodes, events, SNAPSHOT_NOW } from "../data/mockTerminalData";
+import { chainNodes, events as mockEvents, SNAPSHOT_NOW } from "../data/mockTerminalData";
 import { useTerminal } from "../store";
 import { directionText } from "../lib/colors";
 import { relTime } from "../lib/format";
@@ -26,13 +26,47 @@ export function EventFeed() {
   const selectNode = useTerminal((s) => s.selectNode);
   const setHover = useTerminal((s) => s.setHover);
 
+  // Live DART disclosures (+ mock non-disclosure events). Falls back to mock.
+  const [feed, setFeed] = useState<{ events: SemiEvent[]; now: number; dartLive: boolean }>(
+    () => ({ events: mockEvents, now: SNAPSHOT_NOW, dartLive: false }),
+  );
+  useEffect(() => {
+    let cancelled = false;
+    const load = async () => {
+      try {
+        const res = await fetch("/api/events", { cache: "no-store" });
+        if (!res.ok) return;
+        const data = (await res.json()) as {
+          events: SemiEvent[];
+          now: string;
+          dartLive: boolean;
+        };
+        if (!cancelled && Array.isArray(data.events)) {
+          setFeed({
+            events: data.events,
+            now: data.dartLive ? new Date(data.now).getTime() : SNAPSHOT_NOW,
+            dartLive: data.dartLive,
+          });
+        }
+      } catch {
+        /* keep mock */
+      }
+    };
+    load();
+    const id = setInterval(load, 2 * 60_000);
+    return () => {
+      cancelled = true;
+      clearInterval(id);
+    };
+  }, []);
+
   const selectedLabel = useMemo(
     () => chainNodes.find((n) => n.id === selectedNodeId)?.label ?? null,
     [selectedNodeId],
   );
 
   const ordered = useMemo(() => {
-    const withMeta = events.map((e) => ({
+    const withMeta = feed.events.map((e) => ({
       e,
       related: selectedNodeId ? e.relatedNodeIds.includes(selectedNodeId) : false,
       t: new Date(e.occurredAt).getTime(),
@@ -41,7 +75,7 @@ export function EventFeed() {
       if (a.related !== b.related) return a.related ? -1 : 1;
       return b.t - a.t;
     });
-  }, [selectedNodeId]);
+  }, [selectedNodeId, feed.events]);
 
   return (
     <Panel flush className="h-full">
@@ -62,7 +96,8 @@ export function EventFeed() {
             ) : (
               <span className="flex items-center gap-1 font-mono text-[9px] text-ink-faint">
                 <span className="h-1.5 w-1.5 rounded-full bg-up" style={{ animation: "k-pulse 2s infinite" }} />
-                {events.length} events
+                {feed.dartLive ? "DART · " : ""}
+                {feed.events.length} events
               </span>
             )
           }
@@ -106,7 +141,7 @@ export function EventFeed() {
                       </span>
                     )}
                     <span className="ml-auto font-mono text-[8.5px] text-ink-faint">
-                      {relTime(e.occurredAt, SNAPSHOT_NOW)} · {e.sourceName}
+                      {relTime(e.occurredAt, feed.now)} · {e.sourceName}
                     </span>
                   </div>
                   <p className="text-[11px] font-medium leading-snug text-ink group-hover:text-ink">

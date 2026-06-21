@@ -18,6 +18,7 @@ import {
   fetchSox,
   fetchDomesticDaily,
 } from "@/features/terminal/lib/kis";
+import { fetchDartDisclosures } from "@/features/terminal/lib/dart";
 import type {
   ChainImpactBlock,
   ChainImpactNode,
@@ -44,17 +45,26 @@ export type GenerateResult = {
 async function buildSnapshot() {
   const s = terminalSnapshot;
 
-  const [memBoard, kospi, usdkrw, sox] = await Promise.all([
+  const [memBoard, kospi, usdkrw, sox, dartEvents] = await Promise.all([
     getMemoryBoard(),
     features.marketData ? fetchKospi() : Promise.resolve(null),
     features.marketData ? fetchUsdKrw() : Promise.resolve(null),
     features.marketData ? fetchSox() : Promise.resolve(null),
+    features.dart ? fetchDartDisclosures() : Promise.resolve(null),
   ]);
   const coQuotes = features.marketData
     ? await Promise.all(companies.map((c) => fetchDomesticDaily(c.ticker)))
     : companies.map(() => null);
 
-  const anyLive = Boolean(kospi || usdkrw || sox || coQuotes.some(Boolean));
+  // Live DART disclosures replace the mock disclosure events; other event types
+  // (news/earnings/export/price) have no live feed and stay mock.
+  const eventList = dartEvents
+    ? [...dartEvents, ...s.events.filter((e) => e.type !== "disclosure")]
+    : s.events;
+
+  const anyLive = Boolean(
+    kospi || usdkrw || sox || coQuotes.some(Boolean) || dartEvents,
+  );
 
   return {
     asOf: anyLive ? new Date().toISOString() : s.marketStatus.asOf,
@@ -106,7 +116,7 @@ async function buildSnapshot() {
       delta: seg.delta,
       direction: seg.direction,
     })),
-    events: s.events.map((e) => ({
+    events: eventList.map((e) => ({
       type: e.type,
       title: e.title,
       sentiment: e.sentiment,

@@ -1,6 +1,12 @@
+"use client";
+
+import { useMemo } from "react";
 import { cycle, cycleHeadline } from "../data/mockTerminalData";
 import { TOKEN } from "../lib/colors";
 import { cn } from "@/lib/utils";
+import { useMarketData } from "../lib/marketClient";
+import { useCompanyData } from "../lib/companiesClient";
+import { computeLiveCycle } from "../lib/cycleLive";
 
 const REGIME_COLOR: Record<string, string> = {
   Overheated: TOKEN.hot,
@@ -31,9 +37,26 @@ function arc(cx: number, cy: number, r: number, a0: number, a1: number) {
 
 /** Reads-driven semicircular gauge — the "반도체 온도계" (spec §9.3). */
 export function SemiCycleThermometer() {
-  const value = cycle.score;
+  const { bellwethers } = useMarketData();
+  const { companies: liveCo } = useCompanyData();
+
+  const live = useMemo(() => {
+    const bellChanges = Object.values(bellwethers)
+      .filter((b) => b.live)
+      .map((b) => b.changePct);
+    const coMomentum = Object.values(liveCo)
+      .filter((c) => c.live)
+      .map((c) => c.change20d);
+    return computeLiveCycle(cycle.components, {
+      bellwetherChanges: bellChanges.length ? bellChanges : null,
+      companyMomentum20d: coMomentum.length ? coMomentum : null,
+    });
+  }, [bellwethers, liveCo]);
+
+  const value = live.score;
+  const regime = live.regime;
   const valueAngle = START - (value / 100) * (START - END);
-  const color = REGIME_COLOR[cycle.regime];
+  const color = REGIME_COLOR[regime];
   const needle = polar(CX, CY, R - 4, valueAngle);
 
   return (
@@ -84,13 +107,13 @@ export function SemiCycleThermometer() {
             className="mt-0.5 rounded-full border px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider"
             style={{ color, borderColor: `${color}55`, background: `${color}14` }}
           >
-            {cycle.regime}
+            {regime}
           </span>
         </div>
       </div>
 
       <p className="text-center text-[11px] leading-snug text-ink-dim">
-        {cycleHeadline}
+        {live.headline}
       </p>
 
       {/* reads */}
@@ -108,9 +131,14 @@ export function SemiCycleThermometer() {
       {/* weighted components */}
       <div className="mt-0.5 flex flex-col gap-1.5 border-t border-line pt-2.5">
         <span className="label-xs">Score Components</span>
-        {cycle.components.map((c) => (
+        {live.components.map((c) => (
           <div key={c.label} className="flex items-center gap-2">
             <span className="w-28 shrink-0 truncate text-[10.5px] text-ink-dim">
+              {c.live && (
+                <span className="mr-0.5 text-up" title="실시간 (KIS)">
+                  ●
+                </span>
+              )}
               {c.label}
             </span>
             <div className="relative h-1.5 flex-1 overflow-hidden rounded-full bg-elevated">

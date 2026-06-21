@@ -1,13 +1,19 @@
 import "@/lib/assertServer";
 import { env, features } from "@/lib/env";
 import { captureError } from "@/lib/observability";
+import { readAll, mutate } from "@/features/reports/persistence/fileStore";
 
 /**
  * Korea Investment & Securities (KIS) OpenAPI client — server-only.
  *
  * Provides live domestic index quotes (KOSPI). Auth is an OAuth
- * client-credentials token valid ~24h; KIS rate-limits token issuance, so we
- * cache it in module scope and reuse until shortly before expiry.
+ * client-credentials token valid ~24h; KIS rate-limits issuance (1/min), so we
+ * cache the token in two layers and reuse it until shortly before expiry:
+ *   1. globalThis — fast, shared across module graphs within one process.
+ *   2. file store (.data/kis-token.json) — survives dev restarts and is shared
+ *      across instances on a shared filesystem, so we don't re-issue a fresh
+ *      24h token on every cold start. (On ephemeral-fs serverless this only
+ *      helps warm reuse; a shared KV/Redis would dedupe across instances.)
  *
  * Every call fails soft: on any error we log and return null so callers can
  * fall back to mock values rather than break the terminal.
@@ -34,18 +40,31 @@ const g = globalThis as typeof globalThis & {
   __kisTokenInFlight?: Promise<string | null> | null;
 };
 
+const TOKEN_FILE = "kis-token";
+const SAFETY_MS = 5 * 60_000; // refresh 5 min before expiry
+
+function valid(t: TokenCache | null | undefined): t is TokenCache {
+  return Boolean(t && t.expiresAt - SAFETY_MS > Date.now());
+}
+
 /** Issue or reuse a cached access token. Returns null when unavailable. */
 async function getAccessToken(): Promise<string | null> {
   if (!features.marketData) return null;
-  const now = Date.now();
-  // Reuse with a 5-minute safety margin before expiry.
-  if (g.__kisToken && g.__kisToken.expiresAt - 5 * 60_000 > now) {
-    return g.__kisToken.token;
-  }
+
+  // 1. In-process cache.
+  if (valid(g.__kisToken)) return g.__kisToken!.token;
   if (g.__kisTokenInFlight) return g.__kisTokenInFlight;
 
   g.__kisTokenInFlight = (async () => {
     try {
+      // 2. Persisted cache — reuse across restarts / shared-fs instances.
+      const [persisted] = await readAll<TokenCache>(TOKEN_FILE);
+      if (valid(persisted)) {
+        g.__kisToken = persisted;
+        return persisted.token;
+      }
+
+      // 3. Issue a fresh token.
       const res = await fetch(`${baseUrl}/oauth2/tokenP`, {
         method: "POST",
         headers: { "content-type": "application/json" },
@@ -69,8 +88,16 @@ async function getAccessToken(): Promise<string | null> {
       };
       if (!json.access_token) return null;
       const ttlMs = (json.expires_in ?? 86_400) * 1000;
-      g.__kisToken = { token: json.access_token, expiresAt: Date.now() + ttlMs };
-      return g.__kisToken.token;
+      const rec: TokenCache = {
+        token: json.access_token,
+        expiresAt: Date.now() + ttlMs,
+      };
+      g.__kisToken = rec;
+      await mutate<TokenCache, void>(TOKEN_FILE, () => ({
+        rows: [rec],
+        result: undefined,
+      }));
+      return rec.token;
     } catch (err) {
       await captureError(err, { where: "kis.getAccessToken" });
       return null;
