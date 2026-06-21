@@ -6,6 +6,7 @@ import { useTerminal } from "@/features/terminal/store";
 import { terminalSnapshot } from "@/features/terminal/data/mockTerminalData";
 import { pct } from "@/features/terminal/lib/format";
 import { cn } from "@/lib/utils";
+import Image from "next/image";
 
 const KRX_TONE: Record<string, string> = {
   OPEN: "text-up",
@@ -29,7 +30,7 @@ export function TopBar() {
           hour: "2-digit",
           minute: "2-digit",
           second: "2-digit",
-        }),
+        })
       );
     tick();
     const id = setInterval(tick, 1000);
@@ -62,12 +63,19 @@ export function TopBar() {
     <header className="flex h-12 shrink-0 items-center gap-3 border-b border-line bg-panel/90 px-3 backdrop-blur">
       {/* brand */}
       <div className="flex items-center gap-2 pr-1">
-        <div className="grid h-7 w-7 place-items-center rounded-[5px] border border-hot/40 bg-hot/10">
-          <span className="text-[13px] font-bold leading-none text-hot">K</span>
+        <div className=" relative grid h-7 w-7 place-items-center bg-hot/10">
+          <Image
+            src="/k-semi-logo.png"
+            alt="Picture of the author"
+            fill
+            className="object-contain"
+            sizes="28px"
+          />
         </div>
+
         <div className="leading-tight">
           <div className="text-[13px] font-bold tracking-tight text-ink">
-            K-SEMI
+            K-Semi
             <span className="ml-1 rounded bg-elevated px-1 py-0.5 text-[9px] font-mono font-semibold text-ink-dim">
               GO
             </span>
@@ -114,7 +122,11 @@ export function TopBar() {
 
       {/* market status */}
       <div className="flex items-center gap-3 font-mono text-[11px] max-lg:ml-auto">
-        <Stat label="KOSPI" value={marketStatus.kospi.toFixed(1)} delta={marketStatus.kospiChange} />
+        <Stat
+          label="KOSPI"
+          value={marketStatus.kospi.toFixed(1)}
+          delta={marketStatus.kospiChange}
+        />
         <span className="h-4 w-px bg-line" />
         <Stat label="USD/KRW" value={marketStatus.usdkrw.toFixed(1)} />
         <span className="h-4 w-px bg-line" />
@@ -122,15 +134,20 @@ export function TopBar() {
           <span
             className={cn(
               "h-1.5 w-1.5 rounded-full",
-              marketStatus.krx === "OPEN" ? "bg-up" : "bg-flat",
+              marketStatus.krx === "OPEN" ? "bg-up" : "bg-flat"
             )}
-            style={{ animation: marketStatus.krx === "OPEN" ? "k-pulse 2s infinite" : undefined }}
+            style={{
+              animation:
+                marketStatus.krx === "OPEN" ? "k-pulse 2s infinite" : undefined,
+            }}
           />
           <span className={cn("font-semibold", KRX_TONE[marketStatus.krx])}>
             KRX {marketStatus.krx}
           </span>
         </div>
-        <span className="hidden tabular-nums text-ink-dim md:inline">{clock} KST</span>
+        <span className="hidden tabular-nums text-ink-dim md:inline">
+          {clock} KST
+        </span>
       </div>
     </header>
   );
@@ -153,7 +170,7 @@ function Stat({
         <span
           className={cn(
             "tabular-nums",
-            delta > 0 ? "text-up" : delta < 0 ? "text-down" : "text-flat",
+            delta > 0 ? "text-up" : delta < 0 ? "text-down" : "text-flat"
           )}
         >
           {pct(delta)}
