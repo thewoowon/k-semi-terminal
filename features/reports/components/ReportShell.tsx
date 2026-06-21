@@ -2,6 +2,17 @@ import type { ReactNode } from "react";
 import Link from "next/link";
 import { cn } from "@/lib/utils";
 import { ReportNav, type NavKey } from "./ReportNav";
+import { REPORT_DISCLAIMER_SHORT } from "../constants/reportDisclaimers";
+
+const FOOTER_LINKS = [
+  { href: "/terminal", label: "Terminal" },
+  { href: "/reports", label: "Reports" },
+  { href: "/subscribe", label: "Subscribe" },
+  { href: "/disclaimer", label: "Disclaimer" },
+  { href: "/privacy", label: "Privacy" },
+  { href: "/terms", label: "Terms" },
+  { href: "/contact", label: "Contact" },
+];
 
 export type Crumb = { label: string; href?: string };
 
@@ -56,6 +67,23 @@ export function ReportShell({
         ) : (
           <main className={cn(narrow && "mx-auto w-full max-w-3xl")}>{children}</main>
         )}
+
+        <footer className="mt-10 border-t border-line pt-5">
+          <nav className="flex flex-wrap gap-x-4 gap-y-2">
+            {FOOTER_LINKS.map((l) => (
+              <Link
+                key={l.href}
+                href={l.href}
+                className="text-[11px] text-ink-dim hover:text-ink"
+              >
+                {l.label}
+              </Link>
+            ))}
+          </nav>
+          <p className="mt-3 text-[10.5px] leading-relaxed text-ink-faint">
+            © {new Date().getFullYear()} K-Semi Signal · {REPORT_DISCLAIMER_SHORT}
+          </p>
+        </footer>
       </div>
     </div>
   );

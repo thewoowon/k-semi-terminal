@@ -32,6 +32,13 @@ yarn-error.log*
 
 # env files (can opt-in for committing if needed)
 .env*
+!.env.example
+
+# file-backed repository (Phase 0 persistence fallback)
+/.data/
+
+# prisma generated client
+/lib/generated/prisma
 
 # vercel
 .vercel
@@ -46,3 +53,4 @@ next-env.d.ts
 # markdown files
 k_semi_terminal_claude_spec.md
 k_semi_signal_report_engine_claude_spec.md
+k_semi_production_launch_checklist.md

@@ -25,22 +25,38 @@ export function SubscribePanel() {
   const [interests, setInterests] = useState<string[]>(["HBM", "SK하이닉스"]);
   const [done, setDone] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [submitting, setSubmitting] = useState(false);
 
   const toggle = (s: string) =>
     setInterests((prev) =>
       prev.includes(s) ? prev.filter((x) => x !== s) : [...prev, s],
     );
 
-  const submit = (e: React.FormEvent) => {
+  const submit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
       setError("올바른 이메일 주소를 입력해 주세요.");
       return;
     }
     setError(null);
-    // Phase 0 — mock submission (no backend yet).
-    console.log("[K-Semi Founding Reader]", { email, name, interests });
-    setDone(true);
+    setSubmitting(true);
+    try {
+      const res = await fetch("/api/subscribe", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email, name: name || undefined, interests }),
+      });
+      if (res.ok) {
+        setDone(true);
+      } else {
+        const data = (await res.json().catch(() => ({}))) as { error?: string };
+        setError(data.error ?? "등록에 실패했습니다. 잠시 후 다시 시도해 주세요.");
+      }
+    } catch {
+      setError("네트워크 오류가 발생했습니다. 잠시 후 다시 시도해 주세요.");
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   if (done) {
@@ -126,9 +142,10 @@ export function SubscribePanel() {
 
       <button
         type="submit"
-        className="h-11 w-full rounded-md bg-hot text-[13px] font-bold text-base hover:bg-hot/90"
+        disabled={submitting}
+        className="h-11 w-full rounded-md bg-hot text-[13px] font-bold text-base hover:bg-hot/90 disabled:opacity-60"
       >
-        Founding Reader로 등록하기
+        {submitting ? "등록 중…" : "Founding Reader로 등록하기"}
       </button>
       <p className="mt-2.5 text-center text-[10.5px] text-ink-faint">
         결제 기능 오픈 전까지 모든 핵심 리포트는 무료로 제공됩니다. 언제든

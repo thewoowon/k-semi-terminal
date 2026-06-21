@@ -4,14 +4,11 @@ import { ReportShell } from "@/features/reports/components/ReportShell";
 import { DailyReportView } from "@/features/reports/components/DailyReportView";
 import { CycleScoreBlock } from "@/features/reports/components/CycleScore";
 import { FoundingReaderCTA } from "@/features/reports/components/FoundingReaderCTA";
-import {
-  dailyReportsSorted,
-  findDailyReport,
-  latestDailyReport,
-} from "@/features/reports/data/mockDailyReports";
+import { ReportFreshnessBar } from "@/features/reports/components/ReportFreshnessBar";
+import { dailyReportsSorted } from "@/features/reports/data/mockDailyReports";
 import { dailyReportMetadata } from "@/features/reports/lib/reportSeo";
+import { getDailyReport } from "@/features/reports/services/getReport";
 import { dotDate } from "@/lib/formatDate";
-import type { DailySemiReport } from "@/features/reports/lib/reportTypes";
 
 export function generateStaticParams() {
   return [
@@ -20,18 +17,14 @@ export function generateStaticParams() {
   ];
 }
 
-function resolve(date: string): DailySemiReport {
-  if (date === "latest") return latestDailyReport;
-  return findDailyReport(date) ?? latestDailyReport;
-}
-
 export async function generateMetadata({
   params,
 }: {
   params: Promise<{ date: string }>;
 }): Promise<Metadata> {
   const { date } = await params;
-  return dailyReportMetadata(resolve(date));
+  const { report } = await getDailyReport(date);
+  return dailyReportMetadata(report);
 }
 
 export default async function DailyReportPage({
@@ -40,7 +33,8 @@ export default async function DailyReportPage({
   params: Promise<{ date: string }>;
 }) {
   const { date } = await params;
-  const report = resolve(date);
+  const { report, freshness } = await getDailyReport(date);
+  const pdfHref = `/reports/daily/${report.date}/pdf`;
 
   const idx = dailyReportsSorted.findIndex((r) => r.date === report.date);
   const newer = idx > 0 ? dailyReportsSorted[idx - 1] : null;
@@ -102,6 +96,9 @@ export default async function DailyReportPage({
       ]}
       right={right}
     >
+      <div className="mb-4">
+        <ReportFreshnessBar freshness={freshness} pdfHref={pdfHref} />
+      </div>
       <DailyReportView report={report} />
 
       {/* prev / next */}

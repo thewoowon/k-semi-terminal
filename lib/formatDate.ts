@@ -27,6 +27,11 @@ export function dotRange(start: string, end: string): string {
   return `${s} – ${e}`;
 }
 
+/** Today's date in KST as YYYY-MM-DD (for daily report ids/slugs). */
+export function todayKst(): string {
+  return new Date(Date.now() + 9 * 3600 * 1000).toISOString().slice(0, 10);
+}
+
 /** HH:MM KST from an ISO timestamp. */
 export function kstTime(input: string): string {
   const d = new Date(input);

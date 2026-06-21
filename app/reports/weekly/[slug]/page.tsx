@@ -3,14 +3,11 @@ import { ReportShell } from "@/features/reports/components/ReportShell";
 import { WeeklyReportView } from "@/features/reports/components/WeeklyReportView";
 import { CycleScoreBlock } from "@/features/reports/components/CycleScore";
 import { FoundingReaderCTA } from "@/features/reports/components/FoundingReaderCTA";
-import {
-  findWeeklyReport,
-  latestWeeklyReport,
-  weeklyReportsSorted,
-} from "@/features/reports/data/mockWeeklyReports";
+import { ReportFreshnessBar } from "@/features/reports/components/ReportFreshnessBar";
+import { weeklyReportsSorted } from "@/features/reports/data/mockWeeklyReports";
 import { weeklyReportMetadata } from "@/features/reports/lib/reportSeo";
+import { getWeeklyReport } from "@/features/reports/services/getReport";
 import { dotRange } from "@/lib/formatDate";
-import type { WeeklySemiReport } from "@/features/reports/lib/reportTypes";
 
 export function generateStaticParams() {
   return [
@@ -19,18 +16,14 @@ export function generateStaticParams() {
   ];
 }
 
-function resolve(slug: string): WeeklySemiReport {
-  if (slug === "latest") return latestWeeklyReport;
-  return findWeeklyReport(slug) ?? latestWeeklyReport;
-}
-
 export async function generateMetadata({
   params,
 }: {
   params: Promise<{ slug: string }>;
 }): Promise<Metadata> {
   const { slug } = await params;
-  return weeklyReportMetadata(resolve(slug));
+  const { report } = await getWeeklyReport(slug);
+  return weeklyReportMetadata(report);
 }
 
 export default async function WeeklyReportPage({
@@ -39,7 +32,7 @@ export default async function WeeklyReportPage({
   params: Promise<{ slug: string }>;
 }) {
   const { slug } = await params;
-  const report = resolve(slug);
+  const { report, freshness } = await getWeeklyReport(slug);
 
   const right = (
     <>
@@ -77,6 +70,9 @@ export default async function WeeklyReportPage({
       ]}
       right={right}
     >
+      <div className="mb-4">
+        <ReportFreshnessBar freshness={freshness} />
+      </div>
       <WeeklyReportView report={report} />
     </ReportShell>
   );

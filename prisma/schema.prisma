@@ -1,0 +1,68 @@
+// K-Semi Signal — production database schema (launch checklist §4).
+//
+// Phase 0 runs on a file-backed repository with NO database required. When you
+// provision Postgres, set DATABASE_URL, then:
+//   yarn prisma generate && yarn prisma migrate deploy
+// The repository layer (features/reports/persistence) switches to Prisma
+// automatically once DATABASE_URL is present.
+
+generator client {
+  provider = "prisma-client-js"
+  // Project-local output — Yarn PnP makes @prisma/client immutable, so the
+  // client is generated here instead and loaded via a runtime file URL.
+  output   = "../lib/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Subscriber {
+  id             String   @id @default(cuid())
+  email          String   @unique
+  name           String?
+  status         String   @default("active") // active | unsubscribed | bounced
+  source         String   @default("founding")
+  interests      String[] @default([])
+  unsubscribeTok String   @unique
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+}
+
+model Report {
+  id             String           @id @default(cuid())
+  type           String // daily | weekly
+  slug           String           @unique
+  title          String
+  subtitle       String?
+  date           DateTime
+  status         String           @default("draft") // draft | generated | approved | sent | failed
+  accessLevel    String           @default("founding")
+  cycleScore     Int?
+  contentJson    Json
+  html           String?
+  markdown       String?
+  pdfUrl         String?
+  sourceSnapshot Json?
+  generatedAt    DateTime?
+  approvedAt     DateTime?
+  sentAt         DateTime?
+  createdAt      DateTime         @default(now())
+  updatedAt      DateTime         @updatedAt
+  deliveries     ReportDelivery[]
+}
+
+model ReportDelivery {
+  id           String    @id @default(cuid())
+  reportId     String
+  subscriberId String
+  email        String
+  status       String    @default("pending") // pending | sent | failed | skipped
+  resendId     String?
+  error        String?
+  sentAt       DateTime?
+  createdAt    DateTime  @default(now())
+
+  report Report @relation(fields: [reportId], references: [id])
+}
