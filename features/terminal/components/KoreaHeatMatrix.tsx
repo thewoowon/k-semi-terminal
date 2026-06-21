@@ -5,6 +5,7 @@ import { Panel, PanelHeader } from "@/components/terminal/Panel";
 import { cn } from "@/lib/utils";
 import { chainNodes, companies } from "../data/mockTerminalData";
 import { useTerminal } from "../store";
+import { useCompanyData } from "../lib/companiesClient";
 import { pct, trillion } from "../lib/format";
 import type { Company } from "../types";
 
@@ -32,14 +33,33 @@ export function KoreaHeatMatrix() {
   const selectNode = useTerminal((s) => s.selectNode);
   const setHover = useTerminal((s) => s.setHover);
 
+  const { companies: live } = useCompanyData();
+
   const selectedSegment = useMemo(() => {
     const n = chainNodes.find((x) => x.id === selectedNodeId);
     return n?.segment ?? null;
   }, [selectedNodeId]);
 
+  // Overlay live KIS quotes (price + momentum + spark) onto each company;
+  // signalScore and marketCap stay model/mock.
   const sorted = useMemo(
-    () => [...companies].sort((a, b) => b.marketCap - a.marketCap),
-    [],
+    () =>
+      companies
+        .map((c) => {
+          const q = live[c.ticker];
+          return q?.live
+            ? {
+                ...c,
+                price: q.price,
+                change1d: q.change1d,
+                change5d: q.change5d,
+                change20d: q.change20d,
+                spark: q.spark,
+              }
+            : c;
+        })
+        .sort((a, b) => b.marketCap - a.marketCap),
+    [live],
   );
 
   return (

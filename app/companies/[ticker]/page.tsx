@@ -2,6 +2,8 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { companies } from "@/features/terminal/data/mockCompanies";
 import { chainNodes } from "@/features/terminal/data/mockTerminalData";
+import { fetchDomesticDaily } from "@/features/terminal/lib/kis";
+import { features } from "@/lib/env";
 import { Sparkline } from "@/components/terminal/Sparkline";
 import { DeltaPill, ScoreChip } from "@/components/terminal/StatusBadge";
 import {
@@ -11,9 +13,8 @@ import {
   trillion,
 } from "@/features/terminal/lib/format";
 
-export function generateStaticParams() {
-  return companies.map((c) => ({ ticker: c.ticker }));
-}
+// Live KIS quotes — render on demand rather than statically.
+export const dynamic = "force-dynamic";
 
 // Next.js 16: `params` is a Promise and must be awaited.
 export default async function CompanyPage({
@@ -22,8 +23,21 @@ export default async function CompanyPage({
   params: Promise<{ ticker: string }>;
 }) {
   const { ticker } = await params;
-  const company = companies.find((c) => c.ticker === ticker);
-  if (!company) notFound();
+  const base = companies.find((c) => c.ticker === ticker);
+  if (!base) notFound();
+
+  // Overlay live price/momentum/spark; signalScore + marketCap stay model/mock.
+  const live = features.marketData ? await fetchDomesticDaily(base.ticker) : null;
+  const company = live
+    ? {
+        ...base,
+        price: live.price,
+        change1d: live.change1d,
+        change5d: live.change5d,
+        change20d: live.change20d,
+        spark: live.spark,
+      }
+    : base;
 
   const node = chainNodes.find((n) => n.id === company.chainNodeId);
   const changes: [string, number][] = [
@@ -97,7 +111,8 @@ export default async function CompanyPage({
       )}
 
       <p className="text-[10px] text-ink-faint">
-        Mock data · signal strength is an observation, not investment advice.
+        {live ? "Live price (KIS)" : "Mock data"} · signalScore is a model
+        observation, not investment advice.
       </p>
     </main>
   );

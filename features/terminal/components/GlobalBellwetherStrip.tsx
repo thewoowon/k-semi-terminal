@@ -1,10 +1,12 @@
 "use client";
 
+import { useMemo } from "react";
 import { Panel, PanelHeader } from "@/components/terminal/Panel";
 import { Sparkline } from "@/components/terminal/Sparkline";
 import { cn } from "@/lib/utils";
 import { bellwethers } from "../data/mockTerminalData";
 import { useTerminal } from "../store";
+import { useMarketData } from "../lib/marketClient";
 import { pct } from "../lib/format";
 import type { Bellwether } from "../types";
 
@@ -13,6 +15,17 @@ export function GlobalBellwetherStrip() {
   const selectNode = useTerminal((s) => s.selectNode);
   const selectedNodeId = useTerminal((s) => s.selectedNodeId);
   const setHover = useTerminal((s) => s.setHover);
+
+  // Overlay live quotes from KIS onto each tile when available.
+  const { bellwethers: live } = useMarketData();
+  const tiles = useMemo(
+    () =>
+      bellwethers.map((b) => {
+        const q = live[b.ticker];
+        return q?.live ? { ...b, price: q.value, change1d: q.changePct } : b;
+      }),
+    [live],
+  );
 
   return (
     <Panel flush className="h-full">
@@ -33,7 +46,7 @@ export function GlobalBellwetherStrip() {
           className="flex w-max gap-2 px-2 py-2 group-hover/strip:[animation-play-state:paused]"
           style={{ animation: "k-ticker 32s linear infinite" }}
         >
-          {[...bellwethers, ...bellwethers].map((b, i) => (
+          {[...tiles, ...tiles].map((b, i) => (
             <Tile
               key={`${b.ticker}-${i}`}
               b={b}

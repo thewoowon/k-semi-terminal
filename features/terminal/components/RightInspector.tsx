@@ -25,12 +25,14 @@ import {
   signed,
 } from "../lib/format";
 import { SNAPSHOT_NOW } from "../data/mockTerminalData";
+import { useCompanyData } from "../lib/companiesClient";
 
 export function RightInspector() {
   const selectedNodeId = useTerminal((s) => s.selectedNodeId);
   const focusChain = useTerminal((s) => s.focusChain);
   const focusChainNodeId = useTerminal((s) => s.focusChainNodeId);
   const selectNode = useTerminal((s) => s.selectNode);
+  const { companies: live } = useCompanyData();
 
   const node = useMemo(
     () => chainNodes.find((n) => n.id === selectedNodeId) ?? null,
@@ -181,7 +183,11 @@ export function RightInspector() {
           {related.companies.length > 0 && (
             <Section title="Related Companies">
               <div className="flex flex-col gap-1">
-                {related.companies.map((c) => (
+                {related.companies.map((c) => {
+                  const q = live[c.ticker];
+                  const price = q?.live ? q.price : c.price;
+                  const change1d = q?.live ? q.change1d : c.change1d;
+                  return (
                   <button
                     key={c.ticker}
                     onClick={() => selectNode(c.chainNodeId)}
@@ -194,18 +200,19 @@ export function RightInspector() {
                       {c.name}
                     </span>
                     <span className="text-[10.5px] tabular-nums text-ink-faint">
-                      {krw(c.price)}
+                      {krw(price)}
                     </span>
                     <span
                       className={cn(
                         "w-12 text-right text-[11px] font-medium tabular-nums",
-                        directionText(directionForDelta(c.change1d)),
+                        directionText(directionForDelta(change1d)),
                       )}
                     >
-                      {pct(c.change1d)}
+                      {pct(change1d)}
                     </span>
                   </button>
-                ))}
+                  );
+                })}
               </div>
             </Section>
           )}

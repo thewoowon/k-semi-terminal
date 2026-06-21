@@ -3,8 +3,9 @@
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useTerminal } from "@/features/terminal/store";
-import { terminalSnapshot } from "@/features/terminal/data/mockTerminalData";
 import { pct } from "@/features/terminal/lib/format";
+import { krxSession, kstClock, type KrxSession } from "@/features/terminal/lib/marketSession";
+import { useMarketData } from "@/features/terminal/lib/marketClient";
 import { cn } from "@/lib/utils";
 import Image from "next/image";
 
@@ -20,18 +21,16 @@ export function TopBar() {
   const commandEcho = useTerminal((s) => s.commandEcho);
   const [value, setValue] = useState("");
   const [clock, setClock] = useState("");
+  const [krx, setKrx] = useState<KrxSession>("CLOSED");
+  const market = useMarketData();
   const inputRef = useRef<HTMLInputElement>(null);
-  const { marketStatus } = terminalSnapshot;
 
   useEffect(() => {
-    const tick = () =>
-      setClock(
-        new Date().toLocaleTimeString("en-GB", {
-          hour: "2-digit",
-          minute: "2-digit",
-          second: "2-digit",
-        })
-      );
+    const tick = () => {
+      const now = new Date();
+      setClock(kstClock(now));
+      setKrx(krxSession(now));
+    };
     tick();
     const id = setInterval(tick, 1000);
     return () => clearInterval(id);
@@ -124,26 +123,28 @@ export function TopBar() {
       <div className="flex items-center gap-3 font-mono text-[11px] max-lg:ml-auto">
         <Stat
           label="KOSPI"
-          value={marketStatus.kospi.toFixed(1)}
-          delta={marketStatus.kospiChange}
+          value={market.kospi.value.toFixed(2)}
+          delta={market.kospi.changePct}
+          stale={!market.kospi.live}
         />
         <span className="h-4 w-px bg-line" />
-        <Stat label="USD/KRW" value={marketStatus.usdkrw.toFixed(1)} />
+        <Stat
+          label="USD/KRW"
+          value={market.usdkrw.value.toFixed(1)}
+          stale={!market.usdkrw.live}
+        />
         <span className="h-4 w-px bg-line" />
         <div className="flex items-center gap-1.5">
           <span
             className={cn(
               "h-1.5 w-1.5 rounded-full",
-              marketStatus.krx === "OPEN" ? "bg-up" : "bg-flat"
+              krx === "OPEN" ? "bg-up" : "bg-flat"
             )}
             style={{
-              animation:
-                marketStatus.krx === "OPEN" ? "k-pulse 2s infinite" : undefined,
+              animation: krx === "OPEN" ? "k-pulse 2s infinite" : undefined,
             }}
           />
-          <span className={cn("font-semibold", KRX_TONE[marketStatus.krx])}>
-            KRX {marketStatus.krx}
-          </span>
+          <span className={cn("font-semibold", KRX_TONE[krx])}>KRX {krx}</span>
         </div>
         <span className="hidden tabular-nums text-ink-dim md:inline">
           {clock} KST
@@ -157,15 +158,28 @@ function Stat({
   label,
   value,
   delta,
+  stale,
 }: {
   label: string;
   value: string;
   delta?: number;
+  /** Mark the value as not-live (mock or delayed source). */
+  stale?: boolean;
 }) {
   return (
     <div className="flex items-center gap-1.5">
       <span className="text-ink-faint">{label}</span>
-      <span className="font-semibold tabular-nums text-ink">{value}</span>
+      <span className="font-semibold tabular-nums text-ink">
+        {value}
+        {stale && (
+          <span
+            title="실시간 아님 (mock/지연)"
+            className="ml-0.5 align-super text-[8px] text-ink-faint"
+          >
+            ◦
+          </span>
+        )}
+      </span>
       {delta !== undefined && (
         <span
           className={cn(

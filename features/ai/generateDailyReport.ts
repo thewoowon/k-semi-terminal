@@ -10,6 +10,14 @@ import { generateMockDailyReport } from "@/features/reports/lib/reportGenerator"
 import { getCycleLabel } from "@/features/reports/lib/reportScoring";
 import { REPORT_DISCLAIMER } from "@/features/reports/constants/reportDisclaimers";
 import { terminalSnapshot } from "@/features/terminal/data/mockTerminalData";
+import { companies } from "@/features/terminal/data/mockCompanies";
+import { getMemoryBoard } from "@/features/terminal/data/memoryPriceStore";
+import {
+  fetchKospi,
+  fetchUsdKrw,
+  fetchSox,
+  fetchDomesticDaily,
+} from "@/features/terminal/lib/kis";
 import type {
   ChainImpactBlock,
   ChainImpactNode,
@@ -26,19 +34,66 @@ export type GenerateResult = {
   dataCutoff: string;
 };
 
-/** Trim the terminal snapshot into a grounding payload for the model. */
-function buildSnapshot() {
+/**
+ * Trim the terminal snapshot into a grounding payload for the model, enriched
+ * with live data where we have it: market status + Korea company momentum from
+ * KIS, memory prices from the admin board. Cycle/segments/events stay mock (no
+ * live source yet). Every live fetch fails soft to the mock value, and the
+ * payload marks each block's source so the model knows what is real.
+ */
+async function buildSnapshot() {
   const s = terminalSnapshot;
+
+  const [memBoard, kospi, usdkrw, sox] = await Promise.all([
+    getMemoryBoard(),
+    features.marketData ? fetchKospi() : Promise.resolve(null),
+    features.marketData ? fetchUsdKrw() : Promise.resolve(null),
+    features.marketData ? fetchSox() : Promise.resolve(null),
+  ]);
+  const coQuotes = features.marketData
+    ? await Promise.all(companies.map((c) => fetchDomesticDaily(c.ticker)))
+    : companies.map(() => null);
+
+  const anyLive = Boolean(kospi || usdkrw || sox || coQuotes.some(Boolean));
+
   return {
-    asOf: s.marketStatus.asOf,
-    cycle: { score: s.cycle.score, regime: s.cycle.regime, reads: s.cycle.reads },
-    memory: s.memory.map((m) => ({
-      item: m.item,
-      category: m.category,
-      market: m.market,
-      current: m.current,
-      changePct: m.changePct,
-    })),
+    asOf: anyLive ? new Date().toISOString() : s.marketStatus.asOf,
+    dataMode: anyLive ? "live (KIS) + model" : "mock",
+    marketStatus: {
+      kospi: kospi?.value ?? s.marketStatus.kospi,
+      kospiChangePct: kospi?.changePct ?? s.marketStatus.kospiChange,
+      usdkrw: usdkrw?.value ?? s.marketStatus.usdkrw,
+      sox: sox?.value ?? null,
+      soxChangePct: sox?.changePct ?? null,
+      live: Boolean(kospi || usdkrw || sox),
+    },
+    cycle: { score: s.cycle.score, regime: s.cycle.regime, reads: s.cycle.reads, source: "model/mock" },
+    memory: {
+      source: memBoard.source,
+      asOf: memBoard.asOf,
+      quotes: memBoard.quotes.map((m) => ({
+        item: m.item,
+        category: m.category,
+        market: m.market,
+        current: m.current,
+        changePct: m.changePct,
+        unit: m.unit,
+      })),
+    },
+    koreaCompanies: companies.map((c, i) => {
+      const q = coQuotes[i];
+      return {
+        ticker: c.ticker,
+        name: c.name,
+        segment: c.segment,
+        price: q?.price ?? c.price,
+        change1d: q?.change1d ?? c.change1d,
+        change5d: q?.change5d ?? c.change5d,
+        change20d: q?.change20d ?? c.change20d,
+        signalScore: c.signalScore,
+        live: Boolean(q),
+      };
+    }),
     bellwethers: s.bellwethers.map((b) => ({
       ticker: b.ticker,
       name: b.name,
@@ -61,9 +116,9 @@ function buildSnapshot() {
 }
 
 export async function generateDailyReport(date: string): Promise<GenerateResult> {
-  const snapshot = buildSnapshot();
+  const snapshot = await buildSnapshot();
   const dataCutoff = snapshot.asOf;
-  const sourceCount = snapshot.events.length + snapshot.memory.length;
+  const sourceCount = snapshot.events.length + snapshot.memory.quotes.length;
 
   if (!features.ai) {
     // Graceful fallback — rule-based mock when no API key is configured.

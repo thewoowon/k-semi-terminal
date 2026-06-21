@@ -28,6 +28,12 @@ export const env = {
   // Database (server-only)
   databaseUrl: process.env.DATABASE_URL,
 
+  // Market data — Korea Investment & Securities (KIS) OpenAPI (server-only)
+  kisAppKey: process.env.KIS_APP_KEY,
+  kisAppSecret: process.env.KIS_APP_SECRET,
+  // "real" (default) → openapi.koreainvestment.com; "paper" → 모의투자 host.
+  kisEnv: process.env.KIS_ENV === "paper" ? "paper" : "real",
+
   // Observability
   sentryDsn: process.env.SENTRY_DSN || process.env.NEXT_PUBLIC_SENTRY_DSN,
 } as const;
@@ -40,6 +46,8 @@ export const features = {
   email: Boolean(env.resendApiKey),
   /** Postgres/Prisma available; otherwise file-backed repository. */
   db: Boolean(env.databaseUrl),
+  /** Live KIS market data available; otherwise serve mock index values. */
+  marketData: Boolean(env.kisAppKey && env.kisAppSecret),
   /** Sentry error capture available. */
   sentry: Boolean(env.sentryDsn),
 } as const;

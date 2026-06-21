@@ -1,3 +1,6 @@
+"use client";
+
+import { useEffect, useState } from "react";
 import { Panel, PanelHeader } from "@/components/terminal/Panel";
 import { Sparkline } from "@/components/terminal/Sparkline";
 import { cn } from "@/lib/utils";
@@ -12,8 +15,48 @@ const CAT_COLOR: Record<MemoryQuote["category"], string> = {
   NAND: TOKEN.equip,
 };
 
-/** DRAM / NAND / HBM price board (spec §9.6). */
+type Board = { quotes: MemoryQuote[]; source: "admin" | "mock"; asOf: string };
+
+/** DRAM / NAND / HBM price board (spec §9.6). Values are admin-maintained. */
 export function MemoryPriceBoard() {
+  const [board, setBoard] = useState<Board>(() => ({
+    quotes: memoryQuotes,
+    source: "mock",
+    asOf:
+      memoryQuotes.reduce(
+        (max, q) => (q.lastUpdated > max ? q.lastUpdated : max),
+        memoryQuotes[0]?.lastUpdated ?? "",
+      ) || "",
+  }));
+
+  useEffect(() => {
+    let cancelled = false;
+    const load = async () => {
+      try {
+        const res = await fetch("/api/memory", { cache: "no-store" });
+        if (!res.ok) return;
+        const data = (await res.json()) as Board;
+        if (!cancelled && Array.isArray(data.quotes)) setBoard(data);
+      } catch {
+        /* keep mock */
+      }
+    };
+    load();
+    // Memory prices move weekly/monthly — a slow refresh is plenty.
+    const id = setInterval(load, 5 * 60_000);
+    return () => {
+      cancelled = true;
+      clearInterval(id);
+    };
+  }, []);
+
+  const asOf = board.asOf
+    ? new Date(board.asOf).toLocaleDateString("en-CA", {
+        month: "2-digit",
+        day: "2-digit",
+      })
+    : "—";
+
   return (
     <Panel flush className="h-full">
       <div className="p-2.5 pb-1.5">
@@ -21,7 +64,18 @@ export function MemoryPriceBoard() {
           tag="PRICES"
           title="Memory Board"
           className="mb-0"
-          right={<span className="font-mono text-[9px] text-ink-faint">USD · idx</span>}
+          right={
+            <span
+              className="font-mono text-[9px] text-ink-faint"
+              title={
+                board.source === "admin"
+                  ? "관리자 입력값 (수동 갱신)"
+                  : "실시간 아님 — 아직 관리자 입력 전 (mock)"
+              }
+            >
+              {board.source === "admin" ? "admin" : "◦ mock"} · {asOf}
+            </span>
+          }
         />
       </div>
       <div className="min-h-0 flex-1 overflow-y-auto scrollarea px-1.5 pb-1.5">
@@ -35,7 +89,7 @@ export function MemoryPriceBoard() {
             </tr>
           </thead>
           <tbody>
-            {memoryQuotes.map((q) => {
+            {board.quotes.map((q) => {
               const dir = q.changePct > 0.05 ? "up" : q.changePct < -0.05 ? "down" : "flat";
               const color =
                 dir === "up" ? TOKEN.up : dir === "down" ? TOKEN.down : TOKEN.flat;
@@ -72,7 +126,13 @@ export function MemoryPriceBoard() {
                     </div>
                   </td>
                   <td className="px-1 py-1.5 text-right text-[11.5px] font-semibold tabular-nums text-ink">
+                    {q.unit === "USD" ? "$" : ""}
                     {q.current.toFixed(2)}
+                    {q.unit !== "USD" && (
+                      <span className="ml-0.5 text-[8.5px] font-normal text-ink-faint">
+                        {q.unit}
+                      </span>
+                    )}
                   </td>
                   <td
                     className={cn(

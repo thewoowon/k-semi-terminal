@@ -4,6 +4,7 @@ import { Panel, PanelHeader } from "@/components/terminal/Panel";
 import { cn } from "@/lib/utils";
 import { useTerminal } from "../store";
 import { segments, watchlist, cycle } from "../data/mockTerminalData";
+import { useCompanyData } from "../lib/companiesClient";
 import { SEGMENT_ACCENT_HEX } from "../lib/colors";
 import { arrow, arrowForDelta, pct } from "../lib/format";
 import { SemiCycleThermometer } from "./SemiCycleThermometer";
@@ -12,6 +13,7 @@ export function LeftRail() {
   const focusSegmentId = useTerminal((s) => s.focusSegmentId);
   const focusSegment = useTerminal((s) => s.focusSegment);
   const runCommand = useTerminal((s) => s.runCommand);
+  const { companies: live } = useCompanyData();
 
   return (
     <div className="flex h-full min-h-0 w-[268px] shrink-0 flex-col gap-2 overflow-y-auto scrollarea pr-0.5">
@@ -110,7 +112,11 @@ export function LeftRail() {
           <PanelHeader tag="WATCHLIST" title="Korea Basket" className="mb-0" />
         </div>
         <ul className="flex flex-col px-1.5 pb-2">
-          {watchlist.map((w) => (
+          {watchlist.map((w) => {
+            const change1d = live[w.ticker]?.live
+              ? live[w.ticker].change1d
+              : w.change1d;
+            return (
             <li key={w.ticker}>
               <button
                 onClick={() => runCommand(w.ticker)}
@@ -125,17 +131,18 @@ export function LeftRail() {
                 <span
                   className={cn(
                     "w-12 text-right text-[11px] font-medium tabular-nums",
-                    w.change1d > 0 ? "text-up" : w.change1d < 0 ? "text-down" : "text-flat",
+                    change1d > 0 ? "text-up" : change1d < 0 ? "text-down" : "text-flat",
                   )}
                 >
-                  {arrowForDelta(w.change1d)} {pct(w.change1d)}
+                  {arrowForDelta(change1d)} {pct(change1d)}
                 </span>
                 <span className="w-6 text-right text-[11px] font-semibold tabular-nums text-ink">
                   {w.signalScore}
                 </span>
               </button>
             </li>
-          ))}
+            );
+          })}
         </ul>
       </Panel>
     </div>
