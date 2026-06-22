@@ -2,6 +2,7 @@ import "@/lib/assertServer";
 import { env, features } from "@/lib/env";
 import { captureError } from "@/lib/observability";
 import { readAll, mutate } from "@/features/reports/persistence/fileStore";
+import { getKisToken, setKisToken } from "@/features/reports/persistence/pgClient";
 
 /**
  * Korea Investment & Securities (KIS) OpenAPI client — server-only.
@@ -47,6 +48,30 @@ function valid(t: TokenCache | null | undefined): t is TokenCache {
   return Boolean(t && t.expiresAt - SAFETY_MS > Date.now());
 }
 
+/**
+ * Read the persisted token. Prefers Postgres (shared across all serverless
+ * instances → issued ~once/day) and falls back to the file store when no DB.
+ * Never throws — a storage hiccup just means we proceed to issue.
+ */
+async function readPersistedToken(): Promise<TokenCache | null> {
+  try {
+    if (features.db) return await getKisToken();
+    const [persisted] = await readAll<TokenCache>(TOKEN_FILE);
+    return persisted ?? null;
+  } catch {
+    return null;
+  }
+}
+
+async function writePersistedToken(rec: TokenCache): Promise<void> {
+  try {
+    if (features.db) await setKisToken(rec.token, rec.expiresAt);
+    else await mutate<TokenCache, void>(TOKEN_FILE, () => ({ rows: [rec], result: undefined }));
+  } catch {
+    /* best-effort cache; ignore write failures */
+  }
+}
+
 /** Issue or reuse a cached access token. Returns null when unavailable. */
 async function getAccessToken(): Promise<string | null> {
   if (!features.marketData) return null;
@@ -57,8 +82,9 @@ async function getAccessToken(): Promise<string | null> {
 
   g.__kisTokenInFlight = (async () => {
     try {
-      // 2. Persisted cache — reuse across restarts / shared-fs instances.
-      const [persisted] = await readAll<TokenCache>(TOKEN_FILE);
+      // 2. Persisted cache — shared across instances (Postgres) so we don't
+      //    re-issue on every serverless cold start.
+      const persisted = await readPersistedToken();
       if (valid(persisted)) {
         g.__kisToken = persisted;
         return persisted.token;
@@ -93,10 +119,7 @@ async function getAccessToken(): Promise<string | null> {
         expiresAt: Date.now() + ttlMs,
       };
       g.__kisToken = rec;
-      await mutate<TokenCache, void>(TOKEN_FILE, () => ({
-        rows: [rec],
-        result: undefined,
-      }));
+      await writePersistedToken(rec);
       return rec.token;
     } catch (err) {
       await captureError(err, { where: "kis.getAccessToken" });

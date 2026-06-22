@@ -83,6 +83,16 @@ export function ensureSchema(): Promise<void> {
           sent_at       TIMESTAMPTZ,
           created_at    TIMESTAMPTZ NOT NULL DEFAULT now()
         )`;
+      // Shared cache for the KIS access token — one row, reused by every
+      // serverless instance so the 24h token is issued ~once/day globally
+      // instead of once per cold start (which trips KIS's 1/min limit).
+      await db`
+        CREATE TABLE IF NOT EXISTS kis_token (
+          id         INTEGER PRIMARY KEY DEFAULT 1,
+          token      TEXT NOT NULL,
+          expires_at TIMESTAMPTZ NOT NULL,
+          CONSTRAINT kis_token_singleton CHECK (id = 1)
+        )`;
     })().catch((e) => {
       // Let the next call retry rather than caching a rejected promise.
       g.__pgSchemaReady = undefined;
@@ -90,4 +100,24 @@ export function ensureSchema(): Promise<void> {
     });
   }
   return g.__pgSchemaReady;
+}
+
+/** Read the shared KIS token from Postgres (null if absent). */
+export async function getKisToken(): Promise<{
+  token: string;
+  expiresAt: number;
+} | null> {
+  await ensureSchema();
+  const [row] = await sql()`SELECT token, expires_at FROM kis_token WHERE id = 1`;
+  if (!row) return null;
+  return { token: String(row.token), expiresAt: new Date(row.expiresAt as string).getTime() };
+}
+
+/** Upsert the shared KIS token. */
+export async function setKisToken(token: string, expiresAt: number): Promise<void> {
+  await ensureSchema();
+  await sql()`
+    INSERT INTO kis_token (id, token, expires_at)
+    VALUES (1, ${token}, ${new Date(expiresAt)})
+    ON CONFLICT (id) DO UPDATE SET token = EXCLUDED.token, expires_at = EXCLUDED.expires_at`;
 }
