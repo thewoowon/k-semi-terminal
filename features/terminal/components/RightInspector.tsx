@@ -25,14 +25,14 @@ import {
   signed,
 } from "../lib/format";
 import { SNAPSHOT_NOW } from "../data/mockTerminalData";
-import { useCompanyData } from "../lib/companiesClient";
+import { useLiveQuotes } from "../lib/quotesClient";
 
 export function RightInspector() {
   const selectedNodeId = useTerminal((s) => s.selectedNodeId);
   const focusChain = useTerminal((s) => s.focusChain);
   const focusChainNodeId = useTerminal((s) => s.focusChainNodeId);
   const selectNode = useTerminal((s) => s.selectNode);
-  const { companies: live } = useCompanyData();
+  const { quotes: live } = useLiveQuotes();
 
   const node = useMemo(
     () => chainNodes.find((n) => n.id === selectedNodeId) ?? null,

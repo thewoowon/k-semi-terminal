@@ -456,6 +456,76 @@ export async function fetchDomesticDaily(
   }
 }
 
+export type StockTick = {
+  /** Real-time price in KRW. */
+  price: number;
+  /** Real-time day change vs previous close, in percent (signed). */
+  change1d: number;
+  asOf: string;
+};
+
+/**
+ * Real-time quote for a domestic stock (장중 실시간 시세). Lighter and more
+ * "tick"-accurate than the daily-chart endpoint — use this for fast price
+ * updates, and `fetchDomesticDaily` for 5/20-day history + sparkline.
+ */
+export async function fetchDomesticPrice(
+  ticker: string,
+): Promise<StockTick | null> {
+  const token = await getAccessToken();
+  if (!token) return null;
+  try {
+    const url = new URL(
+      `${baseUrl}/uapi/domestic-stock/v1/quotations/inquire-price`,
+    );
+    url.searchParams.set("FID_COND_MRKT_DIV_CODE", "J");
+    url.searchParams.set("FID_INPUT_ISCD", ticker);
+
+    const res = await fetch(url, {
+      headers: {
+        authorization: `Bearer ${token}`,
+        appkey: env.kisAppKey as string,
+        appsecret: env.kisAppSecret as string,
+        tr_id: "FHKST01010100",
+        custtype: "P",
+      },
+      cache: "no-store",
+    });
+    if (!res.ok) {
+      await captureError(new Error(`KIS price HTTP ${res.status}`), {
+        where: "kis.fetchDomesticPrice",
+        ticker,
+      });
+      return null;
+    }
+    const json = (await res.json()) as {
+      rt_cd?: string;
+      msg1?: string;
+      output?: { stck_prpr?: string; prdy_ctrt?: string };
+    };
+    const last = json.output?.stck_prpr;
+    if (json.rt_cd !== "0" || !last) {
+      await captureError(new Error(`KIS price rt_cd=${json.rt_cd}`), {
+        where: "kis.fetchDomesticPrice",
+        ticker,
+        msg: json.msg1,
+      });
+      return null;
+    }
+    const price = Number(last);
+    if (!Number.isFinite(price)) return null;
+    const change1d = Number(json.output?.prdy_ctrt ?? "0");
+    return {
+      price,
+      change1d: Number.isFinite(change1d) ? change1d : 0,
+      asOf: new Date().toISOString(),
+    };
+  } catch (err) {
+    await captureError(err, { where: "kis.fetchDomesticPrice", ticker });
+    return null;
+  }
+}
+
 /** Convenience: PHLX Semiconductor Index (SOX). */
 export function fetchSox(): Promise<IndexQuote | null> {
   return fetchOverseasQuote("N", "SOX");

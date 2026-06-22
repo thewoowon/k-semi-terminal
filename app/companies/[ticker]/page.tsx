@@ -2,7 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { companies } from "@/features/terminal/data/mockCompanies";
 import { chainNodes } from "@/features/terminal/data/mockTerminalData";
-import { fetchDomesticDaily } from "@/features/terminal/lib/kis";
+import { fetchDomesticDaily, fetchDomesticPrice } from "@/features/terminal/lib/kis";
 import { features } from "@/lib/env";
 import { Sparkline } from "@/components/terminal/Sparkline";
 import { DeltaPill, ScoreChip } from "@/components/terminal/StatusBadge";
@@ -26,18 +26,27 @@ export default async function CompanyPage({
   const base = companies.find((c) => c.ticker === ticker);
   if (!base) notFound();
 
-  // Overlay live price/momentum/spark; signalScore + marketCap stay model/mock.
-  const live = features.marketData ? await fetchDomesticDaily(base.ticker) : null;
-  const company = live
-    ? {
-        ...base,
-        price: live.price,
-        change1d: live.change1d,
-        change5d: live.change5d,
-        change20d: live.change20d,
-        spark: live.spark,
-      }
-    : base;
+  // Overlay live data: real-time price/change1d from the tick endpoint, and
+  // 5/20-day momentum + sparkline from daily history. signalScore + marketCap
+  // stay model/mock.
+  const [daily, tick] = features.marketData
+    ? await Promise.all([
+        fetchDomesticDaily(base.ticker),
+        fetchDomesticPrice(base.ticker),
+      ])
+    : [null, null];
+  const live = daily || tick;
+  const company =
+    daily || tick
+      ? {
+          ...base,
+          price: tick?.price ?? daily?.price ?? base.price,
+          change1d: tick?.change1d ?? daily?.change1d ?? base.change1d,
+          change5d: daily?.change5d ?? base.change5d,
+          change20d: daily?.change20d ?? base.change20d,
+          spark: daily?.spark ?? base.spark,
+        }
+      : base;
 
   const node = chainNodes.find((n) => n.id === company.chainNodeId);
   const changes: [string, number][] = [

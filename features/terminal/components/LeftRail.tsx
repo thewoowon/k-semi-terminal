@@ -4,7 +4,7 @@ import { Panel, PanelHeader } from "@/components/terminal/Panel";
 import { cn } from "@/lib/utils";
 import { useTerminal } from "../store";
 import { segments, watchlist, cycle } from "../data/mockTerminalData";
-import { useCompanyData } from "../lib/companiesClient";
+import { useLiveQuotes } from "../lib/quotesClient";
 import { SEGMENT_ACCENT_HEX } from "../lib/colors";
 import { arrow, arrowForDelta, pct } from "../lib/format";
 import { SemiCycleThermometer } from "./SemiCycleThermometer";
@@ -13,7 +13,7 @@ export function LeftRail() {
   const focusSegmentId = useTerminal((s) => s.focusSegmentId);
   const focusSegment = useTerminal((s) => s.focusSegment);
   const runCommand = useTerminal((s) => s.runCommand);
-  const { companies: live } = useCompanyData();
+  const { quotes: live } = useLiveQuotes();
 
   return (
     <div className="flex h-full min-h-0 w-[268px] shrink-0 flex-col gap-2 overflow-y-auto scrollarea pr-0.5">
